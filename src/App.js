@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import TrialModal from './TrialModal';
-import ChartComponent from './ChartComponent'; // ← your separate file
+import ChartComponent from './ChartComponent';
+import Education from './pages/Education';
 
 function Home() {
   return (
@@ -345,6 +346,8 @@ function Login() {
 function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [chartData, setChartData] = useState({});
+
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
   const userEmail = localStorage.getItem('userEmail') || 'Trader';
 
@@ -362,15 +365,54 @@ function Dashboard() {
     }
   }, [isLoggedIn]);
 
+  useEffect(() => {
+    const pairs = ['EURUSD', 'GBPJPY', 'AUDUSD', 'USDJPY'];
+
+    const fetchData = async () => {
+      try {
+        const today = new Date();
+        const startDate = new Date();
+        startDate.setDate(today.getDate() - 30);
+
+        const start = startDate.toISOString().split('T')[0];
+        const end = today.toISOString().split('T')[0];
+
+        const newData = {};
+
+        for (const pair of pairs) {
+          const [base, target] = pair.match(/.{3}/g);
+          const url = `https://api.exchangerate.host/timeseries?start_date=${start}&end_date=${end}&base=${base}&symbols=${target}`;
+
+          const res = await axios.get(url);
+          const rates = res.data.rates;
+
+          const chartPoints = Object.entries(rates).map(([date, values]) => ({
+            time: Math.floor(new Date(date).getTime() / 1000),
+            value: values[target],
+          })).sort((a, b) => a.time - b.time);
+
+          newData[pair] = chartPoints;
+          console.log(`[Data] Fetched ${chartPoints.length} points for ${pair}`);
+        }
+
+        setChartData(newData);
+      } catch (err) {
+        console.error('[Data ERROR]', err);
+      }
+    };
+
+    if (isLoggedIn) fetchData();
+  }, [isLoggedIn]);
+
   if (!isLoggedIn) {
     return <Navigate to="/login" replace />;
   }
 
   const watchlist = [
-    { pair: 'EUR/USD', price: '1.0925', change: '+0.45%', direction: 'up' },
-    { pair: 'GBP/JPY', price: '184.75', change: '-0.32%', direction: 'down' },
-    { pair: 'AUD/USD', price: '0.6580', change: '+0.18%', direction: 'up' },
-    { pair: 'USD/JPY', price: '149.20', change: '+0.12%', direction: 'up' }
+    { pair: 'EUR/USD', price: '1.0925', change: '+0.45%', direction: 'up', code: 'EURUSD' },
+    { pair: 'GBP/JPY', price: '184.75', change: '-0.32%', direction: 'down', code: 'GBPJPY' },
+    { pair: 'AUD/USD', price: '0.6580', change: '+0.18%', direction: 'up', code: 'AUDUSD' },
+    { pair: 'USD/JPY', price: '149.20', change: '+0.12%', direction: 'up', code: 'USDJPY' }
   ];
 
   return (
@@ -392,7 +434,6 @@ function Dashboard() {
         </p>
       </header>
 
-      {/* Watchlist Section with Polished Charts */}
       <div style={{ marginBottom: '5rem' }}>
         <h2 style={{ textAlign: 'center', fontSize: '2.8rem', color: '#cbd5e1', marginBottom: '2rem' }}>
           Your Watchlist
@@ -430,7 +471,11 @@ function Dashboard() {
                 {item.direction === 'up' ? '↑' : '↓'} {item.change}
               </p>
 
-              <ChartComponent pair={item.pair} direction={item.direction} />
+              <ChartComponent 
+                pair={item.pair} 
+                direction={item.direction} 
+                data={chartData[item.code] || []} 
+              />
             </div>
           ))}
         </div>
@@ -504,7 +549,6 @@ function Dashboard() {
             </div>
           </div>
 
-          {/* Recent Market Recap */}
           <div style={{
             background: '#1e293b',
             padding: '2.5rem',
@@ -626,8 +670,12 @@ function About() {
   );
 }
 
-function App() {
-  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+// NEW: Inner component where useLocation is safe
+function MainContent({ isLoggedIn }) {
+  const location = useLocation();
+
+  const isActive = (path) => location.pathname === path;
+
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -641,7 +689,7 @@ function App() {
   }, []);
 
   return (
-    <Router>
+    <>
       <nav style={{ 
         background: '#1e293b', 
         padding: '1.5rem 2rem',
@@ -660,15 +708,50 @@ function App() {
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {!isMobile ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '2.5rem' }}>
-              <Link to="/pricing" style={{ color: '#cbd5e1', textDecoration: 'none', fontSize: '1.3rem' }}>
+              <Link 
+                to="/pricing" 
+                style={{ 
+                  color: isActive('/pricing') ? '#60a5fa' : '#cbd5e1',
+                  textDecoration: 'none', 
+                  fontSize: '1.3rem',
+                  fontWeight: isActive('/pricing') ? 'bold' : 'normal'
+                }}
+              >
                 Pricing
               </Link>
-              <Link to="/about" style={{ color: '#cbd5e1', textDecoration: 'none', fontSize: '1.3rem' }}>
+              <Link 
+                to="/about" 
+                style={{ 
+                  color: isActive('/about') ? '#60a5fa' : '#cbd5e1',
+                  textDecoration: 'none', 
+                  fontSize: '1.3rem',
+                  fontWeight: isActive('/about') ? 'bold' : 'normal'
+                }}
+              >
                 About
+              </Link>
+              <Link 
+                to="/education" 
+                style={{ 
+                  color: isActive('/education') ? '#60a5fa' : '#cbd5e1',
+                  textDecoration: 'none', 
+                  fontSize: '1.3rem',
+                  fontWeight: isActive('/education') ? 'bold' : 'normal'
+                }}
+              >
+                Education
               </Link>
               {isLoggedIn ? (
                 <>
-                  <Link to="/dashboard" style={{ color: '#60a5fa', textDecoration: 'none', fontSize: '1.3rem', fontWeight: 'bold' }}>
+                  <Link 
+                    to="/dashboard" 
+                    style={{ 
+                      color: '#60a5fa',
+                      textDecoration: 'none', 
+                      fontSize: '1.3rem', 
+                      fontWeight: 'bold'
+                    }}
+                  >
                     Dashboard
                   </Link>
                   <button 
@@ -691,7 +774,15 @@ function App() {
                   </button>
                 </>
               ) : (
-                <Link to="/login" style={{ color: '#22c55e', textDecoration: 'none', fontSize: '1.3rem', fontWeight: 'bold' }}>
+                <Link 
+                  to="/login" 
+                  style={{ 
+                    color: isActive('/login') ? '#60a5fa' : '#22c55e',
+                    textDecoration: 'none', 
+                    fontSize: '1.3rem', 
+                    fontWeight: isActive('/login') ? 'bold' : 'normal'
+                  }}
+                >
                   Login / Sign Up
                 </Link>
               )}
@@ -729,15 +820,54 @@ function App() {
           alignItems: 'center',
           gap: '1.8rem'
         }}>
-          <Link to="/pricing" style={{ color: '#cbd5e1', textDecoration: 'none', fontSize: '1.4rem' }} onClick={() => setMenuOpen(false)}>
+          <Link 
+            to="/pricing" 
+            style={{ 
+              color: isActive('/pricing') ? '#60a5fa' : '#cbd5e1',
+              textDecoration: 'none', 
+              fontSize: '1.4rem',
+              fontWeight: isActive('/pricing') ? 'bold' : 'normal'
+            }} 
+            onClick={() => setMenuOpen(false)}
+          >
             Pricing
           </Link>
-          <Link to="/about" style={{ color: '#cbd5e1', textDecoration: 'none', fontSize: '1.4rem' }} onClick={() => setMenuOpen(false)}>
+          <Link 
+            to="/about" 
+            style={{ 
+              color: isActive('/about') ? '#60a5fa' : '#cbd5e1',
+              textDecoration: 'none', 
+              fontSize: '1.4rem',
+              fontWeight: isActive('/about') ? 'bold' : 'normal'
+            }} 
+            onClick={() => setMenuOpen(false)}
+          >
             About
+          </Link>
+          <Link 
+            to="/education" 
+            style={{ 
+              color: isActive('/education') ? '#60a5fa' : '#cbd5e1',
+              textDecoration: 'none', 
+              fontSize: '1.4rem',
+              fontWeight: isActive('/education') ? 'bold' : 'normal'
+            }} 
+            onClick={() => setMenuOpen(false)}
+          >
+            Education
           </Link>
           {isLoggedIn ? (
             <>
-              <Link to="/dashboard" style={{ color: '#60a5fa', textDecoration: 'none', fontSize: '1.4rem', fontWeight: 'bold' }} onClick={() => setMenuOpen(false)}>
+              <Link 
+                to="/dashboard" 
+                style={{ 
+                  color: '#60a5fa',
+                  textDecoration: 'none', 
+                  fontSize: '1.4rem', 
+                  fontWeight: 'bold'
+                }} 
+                onClick={() => setMenuOpen(false)}
+              >
                 Dashboard
               </Link>
               <button 
@@ -761,7 +891,16 @@ function App() {
               </button>
             </>
           ) : (
-            <Link to="/login" style={{ color: '#22c55e', textDecoration: 'none', fontSize: '1.4rem', fontWeight: 'bold' }} onClick={() => setMenuOpen(false)}>
+            <Link 
+              to="/login" 
+              style={{ 
+                color: isActive('/login') ? '#60a5fa' : '#22c55e',
+                textDecoration: 'none', 
+                fontSize: '1.4rem', 
+                fontWeight: isActive('/login') ? 'bold' : 'normal'
+              }} 
+              onClick={() => setMenuOpen(false)}
+            >
               Login / Sign Up
             </Link>
           )}
@@ -774,6 +913,12 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/about" element={<About />} />
+        <Route 
+          path="/education" 
+          element={
+            isLoggedIn ? <Education /> : <Navigate to="/login" replace />
+          } 
+        />
       </Routes>
 
       <footer style={{
@@ -807,6 +952,16 @@ function App() {
           Trading involves significant risk of loss and is not suitable for all investors. Forex Edge provides educational content and trade ideas only – not financial advice.
         </p>
       </footer>
+    </>
+  );
+}
+
+function App() {
+  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+
+  return (
+    <Router>
+      <MainContent isLoggedIn={isLoggedIn} />
     </Router>
   );
 }
