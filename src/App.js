@@ -1,7 +1,103 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import TrialModal from './TrialModal';
+import { createChart } from 'lightweight-charts';
+
+// ────────────────────────────────────────────────
+// Safe ChartComponent – crash-proof version
+const ChartComponent = ({ pair, data = [] }) => {
+  const chartContainerRef = useRef(null);
+
+  useEffect(() => {
+    const container = chartContainerRef.current;
+    if (!container) return;
+
+    let chart = null;
+
+    try {
+      console.log(`[Chart] Starting creation for ${pair}`);
+
+      chart = createChart(container, {
+        width: container.clientWidth,
+        height: 140,
+        layout: {
+          background: { color: '#1e293b' },
+          textColor: '#cbd5e1',
+        },
+        grid: {
+          vertLines: { color: '#334155' },
+          horzLines: { color: '#334155' },
+        },
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: false,
+        },
+        rightPriceScale: {
+          borderColor: '#475569',
+        },
+      });
+
+      console.log(`[Chart] Chart object created for ${pair}`);
+
+      const areaSeries = chart.addAreaSeries({
+        topColor: 'rgba(34, 197, 94, 0.3)',
+        bottomColor: 'rgba(34, 197, 94, 0.01)',
+        lineColor: '#22c55e',
+        lineWidth: 2,
+      });
+
+      console.log(`[Chart] Area series added for ${pair}`);
+
+      // Fake data (smooth random walk for demo)
+      const sampleData = Array.from({ length: 60 }, (_, i) => ({
+        time: i + 1,
+        value: 1.08 + Math.sin(i * 0.1) * 0.015 + Math.random() * 0.005,
+      }));
+
+      areaSeries.setData(sampleData);
+      chart.timeScale().fitContent();
+
+      console.log(`[Chart] Data set and fitted for ${pair}`);
+    } catch (err) {
+      console.error(`[Chart ERROR] Failed for ${pair}:`, err);
+    }
+
+    const handleResize = () => {
+      if (chart && container) {
+        chart.applyOptions({ width: container.clientWidth });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    handleResize(); // initial size
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (chart) {
+        chart.remove();
+        console.log(`[Chart] Removed for ${pair}`);
+      }
+    };
+  }, [pair]);
+
+  return (
+    <div
+      ref={chartContainerRef}
+      style={{
+        width: '100%',
+        height: '140px',
+        marginTop: '0.8rem',
+        borderRadius: '8px',
+        overflow: 'hidden',
+        background: '#0f172a', // fallback if chart fails
+      }}
+    />
+  );
+};
+
+// ────────────────────────────────────────────────
+// Rest of your App.js (Home, Pricing, Login, Dashboard, About, App)
 
 function Home() {
   return (
@@ -347,7 +443,7 @@ function Dashboard() {
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
   const userEmail = localStorage.getItem('userEmail') || 'Trader';
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isLoggedIn) {
       axios.get('http://localhost:5000/api/hello')
         .then(response => {
@@ -364,6 +460,13 @@ function Dashboard() {
   if (!isLoggedIn) {
     return <Navigate to="/login" replace />;
   }
+
+  const watchlist = [
+    { pair: 'EUR/USD', price: '1.0925', change: '+0.45%', direction: 'up' },
+    { pair: 'GBP/JPY', price: '184.75', change: '-0.32%', direction: 'down' },
+    { pair: 'AUD/USD', price: '0.6580', change: '+0.18%', direction: 'up' },
+    { pair: 'USD/JPY', price: '149.20', change: '+0.12%', direction: 'up' }
+  ];
 
   return (
     <div style={{ 
@@ -384,7 +487,7 @@ function Dashboard() {
         </p>
       </header>
 
-      {/* Watchlist Section */}
+      {/* Watchlist Section with Charts */}
       <div style={{ marginBottom: '5rem' }}>
         <h2 style={{ textAlign: 'center', fontSize: '2.8rem', color: '#cbd5e1', marginBottom: '2rem' }}>
           Your Watchlist
@@ -396,12 +499,7 @@ function Dashboard() {
           maxWidth: '1400px',
           margin: '0 auto'
         }}>
-          {[
-            { pair: 'EUR/USD', price: '1.0925', change: '+0.45%', direction: 'up' },
-            { pair: 'GBP/JPY', price: '184.75', change: '-0.32%', direction: 'down' },
-            { pair: 'AUD/USD', price: '0.6580', change: '+0.18%', direction: 'up' },
-            { pair: 'USD/JPY', price: '149.20', change: '+0.12%', direction: 'up' }
-          ].map((item, index) => (
+          {watchlist.map((item, index) => (
             <div key={index} style={{
               background: '#1e293b',
               padding: '1.8rem',
@@ -409,10 +507,10 @@ function Dashboard() {
               borderLeft: `5px solid ${item.direction === 'up' ? '#22c55e' : '#ef4444'}`,
               boxShadow: '0 6px 20px rgba(0,0,0,0.3)'
             }}>
-              <h3 style={{ fontSize: '1.8rem', marginBottom: '0.8rem', color: '#e2e8f0' }}>
+              <h3 style={{ fontSize: '1.8rem', marginBottom: '0.6rem', color: '#e2e8f0' }}>
                 {item.pair}
               </h3>
-              <div style={{ fontSize: '2.2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: '2.2rem', fontWeight: 'bold', marginBottom: '0.4rem' }}>
                 {item.price}
               </div>
               <p style={{ 
@@ -421,10 +519,13 @@ function Dashboard() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '0.5rem'
+                gap: '0.5rem',
+                marginBottom: '0.8rem'
               }}>
                 {item.direction === 'up' ? '↑' : '↓'} {item.change}
               </p>
+
+              <ChartComponent pair={item.pair} />
             </div>
           ))}
         </div>
@@ -628,7 +729,7 @@ function App() {
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
-      if (window.innerWidth >= 768) setMenuOpen(false); // auto-close on desktop
+      if (window.innerWidth >= 768) setMenuOpen(false);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -638,7 +739,7 @@ function App() {
     <Router>
       <nav style={{ 
         background: '#1e293b', 
-        padding: '1.5rem 2rem',  // reduced padding for mobile
+        padding: '1.5rem 2rem',
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
@@ -708,7 +809,6 @@ function App() {
         </div>
       </nav>
 
-      {/* Mobile Menu Dropdown */}
       {menuOpen && isMobile && (
         <div style={{
           background: '#1e293b',
