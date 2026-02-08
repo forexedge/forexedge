@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import TrialModal from './TrialModal';
-import ChartComponent from './ChartComponent';  // ← Your separate file
+import ChartComponent from './ChartComponent'; // ← your separate file
 
 function Home() {
   return (
@@ -392,7 +392,7 @@ function Dashboard() {
         </p>
       </header>
 
-      {/* Watchlist Section with Charts */}
+      {/* Watchlist Section with Polished Charts */}
       <div style={{ marginBottom: '5rem' }}>
         <h2 style={{ textAlign: 'center', fontSize: '2.8rem', color: '#cbd5e1', marginBottom: '2rem' }}>
           Your Watchlist
@@ -430,7 +430,6 @@ function Dashboard() {
                 {item.direction === 'up' ? '↑' : '↓'} {item.change}
               </p>
 
-              {/* Use separate component with direction prop */}
               <ChartComponent pair={item.pair} direction={item.direction} />
             </div>
           ))}

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { createChart } from 'lightweight-charts';
+import { createChart, CrosshairMode } from 'lightweight-charts';
 
-const ChartComponent = ({ pair, direction }) => {
+const ChartComponent = ({ pair, direction = 'up' }) => {
   const chartContainerRef = useRef(null);
 
   useEffect(() => {
@@ -9,64 +9,78 @@ const ChartComponent = ({ pair, direction }) => {
     if (!container) return;
 
     let chart = null;
+    let series = null;
 
     try {
-      console.log(`[Chart] Creating polished chart for ${pair} (${direction})`);
-
+      // Create chart with dark theme matching your app
       chart = createChart(container, {
         width: container.clientWidth,
         height: 140,
         layout: {
-          background: { color: '#1e293b' },
+          background: { type: 'solid', color: '#1e293b' },
           textColor: '#cbd5e1',
+          fontFamily: 'Arial, sans-serif',
         },
         grid: {
-          vertLines: { color: '#334155' },
-          horzLines: { color: '#334155' },
+          vertLines: { color: '#334155', style: 1, visible: true },
+          horzLines: { color: '#334155', style: 1, visible: true },
         },
         timeScale: {
           timeVisible: true,
           secondsVisible: false,
+          borderColor: '#475569',
         },
         rightPriceScale: {
           borderColor: '#475569',
         },
+        crosshair: {
+          mode: CrosshairMode.Normal,
+          vertLine: { color: '#64748b', width: 1, style: 3 },
+          horzLine: { color: '#64748b', width: 1, style: 3 },
+        },
+        // Try to hide TradingView watermark (limited control in lightweight version)
         watermark: {
-          visible: false,  // Try to hide TradingView watermark
+          visible: false,
+          color: 'rgba(0,0,0,0)',
         },
       });
 
-      // Colors based on direction
-      const lineColor = direction === 'up' ? '#22c55e' : '#ef4444';
-      const topColor = direction === 'up' ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)';
-      const bottomColor = direction === 'up' ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.05)';
+      // Color logic based on direction
+      const isUp = direction === 'up';
+      const lineColor = isUp ? '#22c55e' : '#ef4444';
+      const topColor = isUp ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.35)';
+      const bottomColor = isUp ? 'rgba(34, 197, 94, 0.05)' : 'rgba(239, 68, 68, 0.05)';
 
-      const areaSeries = chart.addAreaSeries({
+      series = chart.addAreaSeries({
         topColor,
         bottomColor,
         lineColor,
         lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
       });
 
-      // More visible fake data (wavy lines with clear movement)
-      const basePrice = direction === 'up' ? 1.085 : 1.095;
-      const sampleData = Array.from({ length: 60 }, (_, i) => {
+      // Generate visible fake data with clear movement
+      const base = isUp ? 1.085 : 1.095;
+      const data = Array.from({ length: 60 }, (_, i) => {
         const time = i + 1;
-        const variation = Math.sin(i * 0.25) * 0.03 + Math.cos(i * 0.18) * 0.02 + (Math.random() - 0.5) * 0.01;
-        return { time, value: basePrice + variation };
+        const wave = Math.sin(i * 0.18) * 0.032 + Math.cos(i * 0.12) * 0.018;
+        const noise = (Math.random() - 0.5) * 0.008;
+        return { time, value: base + wave + noise };
       });
 
-      areaSeries.setData(sampleData);
+      series.setData(data);
 
-      // Force fit and redraw
+      // Force proper fit and redraw
       chart.timeScale().fitContent();
-      chart.applyOptions({});  // Trigger re-render
+      chart.applyOptions({}); // trigger re-render
 
-      console.log(`[Chart] Successfully rendered visible lines for ${pair}`);
+      console.log(`[Chart OK] Rendered visible lines for ${pair} (${direction})`);
     } catch (err) {
-      console.error(`[Chart ERROR] Failed for ${pair}:`, err);
+      console.error(`[Chart ERROR] ${pair} failed:`, err);
     }
 
+    // Resize handler
     const handleResize = () => {
       if (chart && container) {
         chart.applyOptions({ width: container.clientWidth });
@@ -74,13 +88,14 @@ const ChartComponent = ({ pair, direction }) => {
     };
 
     window.addEventListener('resize', handleResize);
-    handleResize(); // initial size
+    handleResize(); // initial call
 
+    // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
       if (chart) {
         chart.remove();
-        console.log(`[Chart] Cleaned up for ${pair}`);
+        console.log(`[Chart] Removed ${pair}`);
       }
     };
   }, [pair, direction]);
