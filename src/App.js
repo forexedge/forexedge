@@ -1,103 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import TrialModal from './TrialModal';
-import { createChart } from 'lightweight-charts';
-
-// ────────────────────────────────────────────────
-// Safe ChartComponent – crash-proof version
-const ChartComponent = ({ pair, data = [] }) => {
-  const chartContainerRef = useRef(null);
-
-  useEffect(() => {
-    const container = chartContainerRef.current;
-    if (!container) return;
-
-    let chart = null;
-
-    try {
-      console.log(`[Chart] Starting creation for ${pair}`);
-
-      chart = createChart(container, {
-        width: container.clientWidth,
-        height: 140,
-        layout: {
-          background: { color: '#1e293b' },
-          textColor: '#cbd5e1',
-        },
-        grid: {
-          vertLines: { color: '#334155' },
-          horzLines: { color: '#334155' },
-        },
-        timeScale: {
-          timeVisible: true,
-          secondsVisible: false,
-        },
-        rightPriceScale: {
-          borderColor: '#475569',
-        },
-      });
-
-      console.log(`[Chart] Chart object created for ${pair}`);
-
-      const areaSeries = chart.addAreaSeries({
-        topColor: 'rgba(34, 197, 94, 0.3)',
-        bottomColor: 'rgba(34, 197, 94, 0.01)',
-        lineColor: '#22c55e',
-        lineWidth: 2,
-      });
-
-      console.log(`[Chart] Area series added for ${pair}`);
-
-      // Fake data (smooth random walk for demo)
-      const sampleData = Array.from({ length: 60 }, (_, i) => ({
-        time: i + 1,
-        value: 1.08 + Math.sin(i * 0.1) * 0.015 + Math.random() * 0.005,
-      }));
-
-      areaSeries.setData(sampleData);
-      chart.timeScale().fitContent();
-
-      console.log(`[Chart] Data set and fitted for ${pair}`);
-    } catch (err) {
-      console.error(`[Chart ERROR] Failed for ${pair}:`, err);
-    }
-
-    const handleResize = () => {
-      if (chart && container) {
-        chart.applyOptions({ width: container.clientWidth });
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    handleResize(); // initial size
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (chart) {
-        chart.remove();
-        console.log(`[Chart] Removed for ${pair}`);
-      }
-    };
-  }, [pair]);
-
-  return (
-    <div
-      ref={chartContainerRef}
-      style={{
-        width: '100%',
-        height: '140px',
-        marginTop: '0.8rem',
-        borderRadius: '8px',
-        overflow: 'hidden',
-        background: '#0f172a', // fallback if chart fails
-      }}
-    />
-  );
-};
-
-// ────────────────────────────────────────────────
-// Rest of your App.js (Home, Pricing, Login, Dashboard, About, App)
+import ChartComponent from './ChartComponent';  // ← Your separate file
 
 function Home() {
   return (
@@ -525,7 +430,8 @@ function Dashboard() {
                 {item.direction === 'up' ? '↑' : '↓'} {item.change}
               </p>
 
-              <ChartComponent pair={item.pair} />
+              {/* Use separate component with direction prop */}
+              <ChartComponent pair={item.pair} direction={item.direction} />
             </div>
           ))}
         </div>
